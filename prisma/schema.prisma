@@ -1,0 +1,414 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(cuid())
+  fullName        String
+  email           String   @unique
+  mobile          String   @unique
+  password        String
+  referralCode    String   @unique
+  referredBy      String?
+  role            Role     @default(USER)
+  status          UserStatus @default(ACTIVE)
+  walletBalance   Float    @default(0)
+  totalEarnings   Float    @default(0)
+  kycStatus       KYCStatus @default(PENDING)
+  emailVerified   Boolean  @default(false)
+  mobileVerified  Boolean  @default(false)
+  lastLoginAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  investments     Investment[]
+  transactions    Transaction[]
+  kycDocuments    KYCDocument[]
+  supportTickets  SupportTicket[]
+  withdrawals     Withdrawal[]
+  notifications   Notification[]
+  fraudAlerts     FraudAlert[]
+  referredUsers   User[]   @relation("UserReferrals")
+  referrer        User?   @relation("UserReferrals", fields: [referredBy], references: [referralCode])
+  fundRequests    FundRequest[]
+  
+  @@map("users")
+}
+
+model InvestmentPlan {
+  id          String   @id @default(cuid())
+  name        String
+  amount      Float
+  dailyROI    Float
+  duration    Int      // in days
+  status      PlanStatus @default(ACTIVE)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  investments Investment[]
+  
+  @@map("investment_plans")
+}
+
+model Investment {
+  id              String   @id @default(cuid())
+  userId          String
+  planId          String
+  amount          Float
+  dailyROI        Float
+  totalDays       Int
+  remainingDays   Int
+  totalEarned     Float    @default(0)
+  status          InvestmentStatus @default(ACTIVE)
+  startDate       DateTime @default(now())
+  endDate         DateTime
+  lastROIDate     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan            InvestmentPlan @relation(fields: [planId], references: [id])
+  roiHistory      ROIHistory[]
+  
+  @@map("investments")
+}
+
+model ROIHistory {
+  id            String   @id @default(cuid())
+  investmentId  String
+  userId        String
+  amount        Float
+  creditedAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  // Relations
+  investment    Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  
+  @@map("roi_history")
+}
+
+model Transaction {
+  id            String           @id @default(cuid())
+  userId        String
+  type          TransactionType
+  amount        Float
+  description   String
+  status        TransactionStatus @default(COMPLETED)
+  referenceId   String?          // For related records
+  metadata      String?          // JSON string for additional data
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  // Relations
+  user          User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("transactions")
+}
+
+model Withdrawal {
+  id            String           @id @default(cuid())
+  userId        String
+  amount        Float
+  method        WithdrawalMethod
+  details       String           // UPI ID, Bank details etc.
+  status        WithdrawalStatus @default(PENDING)
+  adminRemark   String?
+  processedAt   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  // Relations
+  user          User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("withdrawals")
+}
+
+model KYCDocument {
+  id              String     @id @default(cuid())
+  userId          String
+  aadharNumber    String?
+  panNumber       String?
+  aadharFront     String?    // File path
+  aadharBack      String?    // File path
+  panCard         String?    // File path
+  nomineeName     String?
+  nomineeRelation String?
+  bankDetails     String?    // JSON string
+  upiId           String?
+  declaration     Boolean    @default(false)
+  status          KYCStatus  @default(PENDING)
+  adminRemark     String?
+  submittedAt     DateTime   @default(now())
+  reviewedAt      DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  // Relations
+  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("kyc_documents")
+}
+
+model SupportTicket {
+  id            String           @id @default(cuid())
+  userId        String
+  subject       String
+  message       String
+  screenshot    String?          // File path
+  status        TicketStatus     @default(OPEN)
+  adminReply    String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  // Relations
+  user          User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("support_tickets")
+}
+
+model Notification {
+  id            String           @id @default(cuid())
+  userId        String
+  title         String
+  message       String
+  type          NotificationType @default(GENERAL)
+  isRead        Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  // Relations
+  user          User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("notifications")
+}
+
+model FraudAlert {
+  id            String   @id @default(cuid())
+  ruleId        String
+  ruleName      String
+  severity      String   // LOW, MEDIUM, HIGH, CRITICAL
+  userId        String?
+  ip            String?
+  userAgent     String?
+  activityData  String?  // JSON
+  status        String   @default("OPEN") // OPEN, INVESTIGATING, RESOLVED, FALSE_POSITIVE
+  adminRemark   String?
+  resolvedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user          User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("fraud_alerts")
+}
+
+model SystemSettings {
+  id            String   @id @default(cuid())
+  key           String   @unique
+  value         String
+  description   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@map("system_settings")
+}
+
+model ReferralCommission {
+  id            String   @id @default(cuid())
+  userId        String   // Who earned the commission
+  fromUserId    String   // From whose investment
+  investmentId  String
+  level         Int      // 1-5
+  percentage    Float
+  amount        Float
+  createdAt     DateTime @default(now())
+  
+  @@map("referral_commissions")
+}
+
+model CompanyDetails {
+  id              String   @id @default(cuid())
+  name            String
+  email           String
+  phone           String
+  address         String
+  description     String?
+  logo            String?
+  gstin           String?
+  pan             String?
+  upiId           String?
+  supportEmail    String?
+  supportPhone    String?
+  website         String?
+  socialLinks     String?  // JSON
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("company_details")
+}
+
+model CommissionSettings {
+  id              String   @id @default(cuid())
+  level           Int      @unique
+  percentage      Float
+  description     String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("commission_settings")
+}
+
+model UPIPayment {
+  id              String   @id @default(cuid())
+  upiId           String
+  displayName     String
+  isActive        Boolean  @default(true)
+  isDefault       Boolean  @default(false)
+  description     String?
+  qrCode          String?  // Base64 or URL
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("upi_payments")
+}
+
+model FundRequest {
+  id              String           @id @default(cuid())
+  userId          String
+  amount          Float
+  method          PaymentMethod
+  transactionId   String?
+  screenshot      String?          // Payment proof
+  status          FundRequestStatus @default(PENDING)
+  adminRemark     String?
+  processedAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relations
+  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("fund_requests")
+}
+
+model PaymentGateway {
+  id              String   @id @default(cuid())
+  name            String
+  type            GatewayType
+  apiKey          String?
+  secretKey       String?
+  webhookSecret   String?
+  isActive        Boolean  @default(true)
+  config          String?  // JSON for additional config
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("payment_gateways")
+}
+
+// Enums
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum KYCStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PlanStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum InvestmentStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum TransactionType {
+  INVESTMENT
+  ROI
+  REFERRAL
+  WITHDRAWAL
+  ADD_FUNDS
+  BONUS
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum WithdrawalMethod {
+  UPI
+  BANK_TRANSFER
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TicketStatus {
+  OPEN
+  CLOSED
+}
+
+enum NotificationType {
+  GENERAL
+  INVESTMENT
+  ROI
+  WITHDRAWAL
+  KYC
+  REFERRAL
+}
+
+enum PaymentMethod {
+  UPI
+  BANK_TRANSFER
+  CASH
+  OTHER
+}
+
+enum FundRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum GatewayType {
+  UPI
+  RAZORPAY
+  PAYTM
+  PHONEPE
+  CASHFREE
+}

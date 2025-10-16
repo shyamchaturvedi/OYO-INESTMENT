@@ -74,16 +74,16 @@ async function handleKYCSubmission(request: NextRequest, user: any) {
       ? JSON.stringify(validatedData.bankDetails)
       : null
 
-    // Check if KYC already exists
-    const existingKYC = await db.kYCDocument.findFirst({
+    // Check if KYC already exists for update
+    const currentKYC = await db.kYCDocument.findFirst({
       where: { userId: user.id }
     })
 
     let kycDocument
-    if (existingKYC) {
+    if (currentKYC) {
       // Update existing KYC
       kycDocument = await db.kYCDocument.update({
-        where: { id: existingKYC.id },
+        where: { id: currentKYC.id },
         data: {
           aadharFront: validatedData.aadharFront,
           aadharBack: validatedData.aadharBack,

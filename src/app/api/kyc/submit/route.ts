@@ -15,33 +15,44 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     
     // Extract form fields
-    const aadharNumber = formData.get('aadharNumber') as string
-    const panNumber = formData.get('panNumber') as string
-    const nomineeName = formData.get('nomineeName') as string
-    const nomineeRelation = formData.get('nomineeRelation') as string
-    const declaration = formData.get('declaration') === 'true'
+    const panCard = formData.get('panCard') as string
+    const bankDetails = formData.get('bankDetails') as string
+    const upiId = formData.get('upiId') as string
 
     // Extract files
     const aadharFront = formData.get('aadharFront') as File
     const aadharBack = formData.get('aadharBack') as File
-    const panCard = formData.get('panCard') as File
 
     // Validation
-    if (!aadharNumber || !panNumber || !nomineeName || !nomineeRelation || !declaration) {
-      return NextResponse.json({ error: 'All fields are required' }, { status: 400 })
+    if (!panCard || !bankDetails) {
+      return NextResponse.json({ error: 'PAN card and bank details are required' }, { status: 400 })
     }
 
-    if (!aadharFront || !aadharBack || !panCard) {
-      return NextResponse.json({ error: 'All documents are required' }, { status: 400 })
+    if (!aadharFront || !aadharBack) {
+      return NextResponse.json({ error: 'Aadhaar documents are required' }, { status: 400 })
     }
 
-    // Validate Aadhar and PAN formats
-    if (aadharNumber.replace(/\D/g, '').length !== 12) {
-      return NextResponse.json({ error: 'Invalid Aadhar number' }, { status: 400 })
+    // Validate PAN format
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(panCard)) {
+      return NextResponse.json({ error: 'Invalid PAN card format' }, { status: 400 })
     }
 
-    if (panNumber.length !== 10 || !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(panNumber)) {
-      return NextResponse.json({ error: 'Invalid PAN number format' }, { status: 400 })
+    // Parse bank details
+    let bankDetailsObj
+    try {
+      bankDetailsObj = JSON.parse(bankDetails)
+    } catch {
+      return NextResponse.json({ error: 'Invalid bank details format' }, { status: 400 })
+    }
+
+    // Validate bank details
+    if (!bankDetailsObj.accountNumber || !bankDetailsObj.ifsc || !bankDetailsObj.bankName) {
+      return NextResponse.json({ error: 'All bank details are required' }, { status: 400 })
+    }
+
+    // Validate IFSC format
+    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bankDetailsObj.ifsc)) {
+      return NextResponse.json({ error: 'Invalid IFSC code format' }, { status: 400 })
     }
 
     // Check if user already has a pending or approved KYC
@@ -85,20 +96,16 @@ export async function POST(request: NextRequest) {
 
     const aadharFrontPath = await saveFile(aadharFront, 'aadhar_front')
     const aadharBackPath = await saveFile(aadharBack, 'aadhar_back')
-    const panCardPath = await saveFile(panCard, 'pan_card')
 
     // Create KYC document record
     const kycDocument = await db.kYCDocument.create({
       data: {
         userId: session.user.id,
-        aadharNumber: aadharNumber.replace(/\D/g, ''),
-        panNumber: panNumber.toUpperCase(),
-        nomineeName,
-        nomineeRelation,
+        panNumber: panCard.toUpperCase(),
+        bankDetails: bankDetails,
+        upiId: upiId || null,
         aadharFront: aadharFrontPath,
         aadharBack: aadharBackPath,
-        panCard: panCardPath,
-        declaration,
         status: KYCStatus.PENDING,
         submittedAt: new Date()
       }
@@ -123,7 +130,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'KYC documents submitted successfully',
-      kycId: kycDocument.id
+      kycId: kycDocument.id,
+      userId: session.user.id
     })
 
   } catch (error) {

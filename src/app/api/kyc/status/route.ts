@@ -35,22 +35,39 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         status: true,
-        aadharNumber: true,
         panNumber: true,
-        nomineeName: true,
-        nomineeRelation: true,
+        bankDetails: true,
+        upiId: true,
+        aadharFront: true,
+        aadharBack: true,
         submittedAt: true,
         reviewedAt: true,
         adminRemark: true
       }
     })
 
+    // Format KYC data for live components
+    const kyc = kycData ? {
+      id: kycData.id,
+      status: kycData.status,
+      submittedAt: kycData.submittedAt.toISOString(),
+      reviewedAt: kycData.reviewedAt?.toISOString(),
+      adminRemark: kycData.adminRemark,
+      documents: {
+        aadharFront: !!kycData.aadharFront,
+        aadharBack: !!kycData.aadharBack,
+        panCard: !!kycData.panNumber,
+        bankDetails: !!kycData.bankDetails
+      }
+    } : null
+
     return NextResponse.json({
+      success: true,
       userData: {
         kycStatus: user.kycStatus,
         totalWithdrawn
       },
-      kycData
+      kyc
     })
 
   } catch (error) {

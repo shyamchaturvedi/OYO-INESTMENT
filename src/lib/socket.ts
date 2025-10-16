@@ -125,12 +125,13 @@ export const setupSocket = (io: Server) => {
     });
 
     // Real-time KYC status updates
-    socket.on('kyc-update', async (data: { userId: string; status: string; adminRemark?: string }) => {
-      const { userId, status, adminRemark } = data;
+    socket.on('kyc-update', async (data: { userId: string; status: string; kycId?: string; adminRemark?: string }) => {
+      const { userId, status, kycId, adminRemark } = data;
       
       // Notify user
       io.to(`user-${userId}`).emit('kyc-status-update', {
         status,
+        kycId,
         adminRemark,
         timestamp: new Date().toISOString()
       });
@@ -139,7 +140,28 @@ export const setupSocket = (io: Server) => {
       io.to('admin-room').emit('admin-kyc-update', {
         userId,
         status,
+        kycId,
         adminRemark,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Real-time KYC submission updates
+    socket.on('kyc-submission-update', async (data: { userId: string; status: string; message?: string }) => {
+      const { userId, status, message } = data;
+      
+      // Notify user
+      io.to(`user-${userId}`).emit('kyc-submission-update', {
+        status,
+        message,
+        timestamp: new Date().toISOString()
+      });
+
+      // Notify admin
+      io.to('admin-room').emit('admin-kyc-submission', {
+        userId,
+        status,
+        message,
         timestamp: new Date().toISOString()
       });
     });

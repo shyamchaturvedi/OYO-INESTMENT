@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import BackgroundProcessMonitor from '@/components/admin/BackgroundProcessMonitor'
 import { 
   Users, 
   TrendingUp, 
@@ -220,6 +221,9 @@ export default function AdminDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Background Process Monitor */}
+      <BackgroundProcessMonitor />
     </div>
   )
 }

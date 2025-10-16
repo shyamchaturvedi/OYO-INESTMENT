@@ -1,5 +1,6 @@
-// server.ts - Next.js Standalone + Socket.IO
+// server.ts - Next.js Standalone + Socket.IO + Background Processes
 import { setupSocket } from '@/lib/socket';
+import { initializeBackgroundProcesses } from '@/lib/processes';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import next from 'next';
@@ -42,10 +43,34 @@ async function createCustomServer() {
 
     setupSocket(io);
 
+    // Initialize and start background processes
+    const backgroundProcessManager = initializeBackgroundProcesses(io);
+    backgroundProcessManager.start();
+
+    // Graceful shutdown handling
+    process.on('SIGTERM', () => {
+      console.log('🛑 SIGTERM received, shutting down gracefully...');
+      backgroundProcessManager.stop();
+      server.close(() => {
+        console.log('✅ Server closed');
+        process.exit(0);
+      });
+    });
+
+    process.on('SIGINT', () => {
+      console.log('🛑 SIGINT received, shutting down gracefully...');
+      backgroundProcessManager.stop();
+      server.close(() => {
+        console.log('✅ Server closed');
+        process.exit(0);
+      });
+    });
+
     // Start the server
     server.listen(currentPort, hostname, () => {
       console.log(`> Ready on http://${hostname}:${currentPort}`);
       console.log(`> Socket.IO server running at ws://${hostname}:${currentPort}/api/socketio`);
+      console.log(`> Background processes started`);
     });
 
   } catch (err) {
